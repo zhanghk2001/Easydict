@@ -15,14 +15,6 @@ class GlobalContext: NSObject {
     // MARK: Lifecycle
 
     private override init() {
-        self.updaterHelper = SPUUpdaterHelper()
-        self.userDriverHelper = SPUUserDriverHelper()
-        self.updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
-            updaterDelegate: updaterHelper,
-            userDriverDelegate: userDriverHelper
-        )
-
         super.init()
 
         reloadLLMServicesSubscribers()
@@ -47,7 +39,11 @@ class GlobalContext: NSObject {
 
     static let shared = GlobalContext()
 
-    let updaterController: SPUStandardUpdaterController
+    lazy var updaterController = SPUStandardUpdaterController(
+        startingUpdater: false,
+        updaterDelegate: updaterHelper,
+        userDriverDelegate: userDriverHelper
+    )
 
     /// Rebuilds configuration observers for stream services used by any window.
     ///
@@ -83,8 +79,8 @@ class GlobalContext: NSObject {
 
     // MARK: Private
 
-    private let updaterHelper: SPUUpdaterHelper
-    private let userDriverHelper: SPUUserDriverHelper
+    private lazy var updaterHelper = SPUUpdaterHelper()
+    private lazy var userDriverHelper = SPUUserDriverHelper()
 
     // TODO: This code is not good, we should improve it later.
 

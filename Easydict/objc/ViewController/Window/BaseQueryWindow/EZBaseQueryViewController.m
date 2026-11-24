@@ -261,10 +261,6 @@ static BOOL ez_frame_equal_with_tolerance(CGRect lhs, CGRect rhs, CGFloat tolera
     NSMutableArray *serviceTypeIds = [NSMutableArray array];
     NSMutableArray *services = [NSMutableArray array];
 
-    self.youdaoService = nil;
-    _defaultTTSService = nil;
-    EZServiceType defaultTTSServiceType = self.config.defaultTTSServiceType;
-
     for (EZQueryService *service in allServices) {
         if (service.enabled) {
             [self resetService:service];
@@ -272,23 +268,9 @@ static BOOL ez_frame_equal_with_tolerance(CGRect lhs, CGRect rhs, CGFloat tolera
             [services addObject:service];
             [serviceTypeIds addObject:service.serviceTypeWithUniqueIdentifier];
         }
-
-        EZServiceType serviceType = service.serviceType;
-        if ([serviceType isEqualToString:EZServiceTypeYoudao]) {
-            self.youdaoService = service;
-        }
-
-        if ([serviceType isEqualToString:defaultTTSServiceType]) {
-            _defaultTTSService = service;
-        }
     }
     self.services = services;
     self.serviceTypeIds = serviceTypeIds;
-
-    self.audioPlayer = [[EZAudioPlayer alloc] init];
-    if (!self.youdaoService) {
-        self.youdaoService = [EZLocalStorage.shared service:EZServiceTypeYoudao windowType:self.windowType];
-    }
 }
 
 - (void)dealloc {
@@ -1035,16 +1017,6 @@ static BOOL ez_frame_equal_with_tolerance(CGRect lhs, CGRect rhs, CGFloat tolera
                                                   forQueryText:queryText
                                                             in:RecordTypeHistory];
         }
-        // Append the query to the vocabulary notebook when it has content.
-        // HTML-only dictionary results (Apple Dictionary, MDict) carry neither a
-        // word result nor translated text, so htmlString must count as content too.
-        BOOL hasContent = queryText.length > 0
-            && (result.wordResult != nil
-                || result.translatedText.length > 0
-                || result.htmlString.length > 0);
-        if (shouldRecord && hasContent && result.error == nil) {
-            [VocabularyNotebookService.shared appendWithQueryModel:queryModel result:result];
-        }
     }
 
     if (service.autoCopyTranslatedTextBlock && !result.isCombinedOCRFailure) {
@@ -1594,7 +1566,7 @@ static BOOL ez_frame_equal_with_tolerance(CGRect lhs, CGRect rhs, CGFloat tolera
     }
     queryView.placeholderText = placeholderText;
 
-    queryView.audioButton.audioPlayer = self.audioPlayer;
+    queryView.audioButton.hidden = YES;
 
     mm_weakify(self);
     [queryView setUpdateInputTextBlock:^(NSString *text, CGFloat queryViewHeight) {

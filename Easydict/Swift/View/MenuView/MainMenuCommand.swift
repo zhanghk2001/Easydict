@@ -15,13 +15,6 @@ struct EasydictMainMenu: Commands {
         // Shortcuts
         MainMenuShortcutCommand()
 
-        // Override Help
-        CommandGroup(replacing: .help) {
-            Button("menu_feedback") {
-                openURL(AppConstants.issuesURL)
-            }
-        }
-
         // Override About
         CommandGroup(replacing: .appInfo) {
             Button {
@@ -30,19 +23,5 @@ struct EasydictMainMenu: Commands {
                 Text("menubar.about")
             }
         }
-
-        // Check for updates
-        CommandGroup(after: .appInfo, addition: {
-            Button {
-                MyConfiguration.shared.updater.checkForUpdates()
-            } label: {
-                Text("check_updates")
-            }
-        })
     }
-
-    // MARK: Private
-
-    @Environment(\.openURL) private var openURL
-    @Environment(\.openWindow) private var openWindow
 }

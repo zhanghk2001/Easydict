@@ -5,7 +5,6 @@
 //  Created by tisfeng on 2022/11/22.
 //
 
-import Defaults
 import Foundation
 
 // MARK: - LocalStorage
@@ -20,12 +19,6 @@ final class LocalStorage: NSObject {
         self.userDefaults = userDefaults
         self.queryUsageStore = QueryUsageStore(userDefaults: userDefaults)
         super.init()
-        if let domain = Bundle.main.bundleIdentifier {
-            let snapshot = userDefaults.persistentDomain(forName: domain) ?? [:]
-            for uuid in CodexConfigMigration.legacyUUIDs(in: snapshot) {
-                Defaults[CodexAccessMode.key(uuid: uuid)] = .localCLI
-            }
-        }
         setup()
     }
 
@@ -85,79 +78,44 @@ final class LocalStorage: NSObject {
     /// - Parameter windowType: Window type to query.
     /// - Returns: Ordered service type identifiers.
     func allServiceTypes(_ windowType: EZWindowType) -> [String] {
-        let allServiceTypesKey = serviceTypesKey(of: windowType)
+        guard windowType == .fixed else { return [] }
 
-        guard let storedTypes = userDefaults.array(forKey: allServiceTypesKey) as? [String] else {
-            userDefaults.set(defaultServiceTypeIDs, forKey: allServiceTypesKey)
-            return defaultServiceTypeIDs
+        if let stored = userDefaults.array(forKey: translationServiceTypesKey) as? [String] {
+            return customServiceTypeIDs(stored)
         }
 
-        return storedTypes
+        // Reuse existing Custom OpenAI UUIDs so endpoint, model, API key and prompts stay linked.
+        let existing = [EZWindowType.fixed, .mini, .main].flatMap { windowType in
+            userDefaults.array(forKey: serviceTypesKey(of: windowType)) as? [String] ?? []
+        }
+        let custom = customServiceTypeIDs(existing)
+        let initial = custom.isEmpty ? [ServiceType.customOpenAI.rawValue] : custom
+        setAllServiceTypes(initial, windowType: windowType)
+        return initial
     }
 
-    /// Persists ordered service type identifiers for the given window.
-    /// - Parameters:
-    ///   - allServiceTypes: Ordered service type identifiers.
-    ///   - windowType: Target window type.
+    /// Persists the service order for the shared translation window.
     func setAllServiceTypes(_ allServiceTypes: [String], windowType: EZWindowType) {
-        let allServiceTypesKey = serviceTypesKey(of: windowType)
-        userDefaults.set(allServiceTypes, forKey: allServiceTypesKey)
+        guard windowType == .fixed else { return }
+        userDefaults.set(customServiceTypeIDs(allServiceTypes), forKey: translationServiceTypesKey)
     }
 
     func availableServiceTypeIDs(windowType: EZWindowType) -> [String] {
-        let addedServiceTypeIds = allServiceTypes(windowType)
-        let savedServiceTypeIds = [EZWindowType.fixed, .main, .mini]
-            .flatMap { allServiceTypes($0) }
-        let allServiceTypeIds = QueryServiceFactory.shared.allServiceTypeIDs + savedServiceTypeIds
-        var seenTypeIds = Set<String>()
-        let uniqueTypeIds = allServiceTypeIds.filter {
-            seenTypeIds.insert($0).inserted
-        }
-
-        return uniqueTypeIds.filter { typeId in
-            guard let metadata = QueryServiceFactory.shared.metadata(withTypeId: typeId) else {
-                return false
-            }
-            if metadata.allowsMultipleInstances, metadata.uuid.isEmpty {
-                return true
-            }
-            return !containsServiceType(
-                typeId,
-                in: addedServiceTypeIds,
-                metadata: metadata
-            )
-        }
+        windowType == .fixed ? [ServiceType.customOpenAI.rawValue] : []
     }
 
     @MainActor
     @discardableResult
     func addServiceType(_ serviceTypeId: String, windowType: EZWindowType) async -> Bool {
         guard !Task.isCancelled,
-              let metadata = QueryServiceFactory.shared.metadata(withTypeId: serviceTypeId)
+              windowType == .fixed,
+              let metadata = QueryServiceFactory.shared.metadata(withTypeId: serviceTypeId),
+              metadata.serviceType == .customOpenAI
         else { return false }
 
-        let modeKey = metadata.serviceType == .codexCLI ? CodexAccessMode.key(uuid: metadata.uuid) : nil
-        let initialMode: CodexAccessMode?
-        if let modeKey, !hasStoredAccessMode(modeKey) {
-            // CLI discovery can block while the user's login shell runs.
-            let hasCLI = await Task.detached(priority: .utility) {
-                CodexCLIInstallation.detectBinaryPath() != nil
-            }.value
-            initialMode = hasCLI ? .localCLI : .managed
-        } else {
-            initialMode = nil
-        }
-
-        // Read both settings again after suspension so a concurrent addition or
-        // manual mode change takes precedence.
-        guard !Task.isCancelled else { return false }
         var serviceTypeIds = allServiceTypes(windowType)
         guard !containsServiceType(serviceTypeId, in: serviceTypeIds, metadata: metadata) else {
             return false
-        }
-        if let modeKey, let initialMode, !hasStoredAccessMode(modeKey) {
-            // Persist before membership so startup migration sees an initialized instance.
-            Defaults[modeKey] = initialMode
         }
         serviceTypeIds.append(serviceTypeId)
         setAllServiceTypes(serviceTypeIds, windowType: windowType)
@@ -378,45 +336,26 @@ final class LocalStorage: NSObject {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    private let defaultServiceTypeIDs: [String] = [
-        ServiceType.youdao.rawValue,
-        ServiceType.deepL.rawValue,
-        ServiceType.builtInAI.rawValue,
-    ]
+    private let translationServiceTypesKey = "translationOnlyServiceTypes"
 
-    private func hasStoredAccessMode(_ key: Defaults.Key<CodexAccessMode>) -> Bool {
-        guard let domain = Bundle.main.bundleIdentifier else {
-            return userDefaults.object(forKey: key.name) != nil
+    private func customServiceTypeIDs(_ typeIDs: [String]) -> [String] {
+        var seen = Set<String>()
+        return typeIDs.filter { typeID in
+            serviceIdentifierComponents(from: typeID).rawType == ServiceType.customOpenAI.rawValue
+                && seen.insert(typeID).inserted
         }
-        return userDefaults.persistentDomain(forName: domain)?[key.name] != nil
     }
 
-    /// Ensures all known services have stored defaults for each window type.
     private func setup() {
-        let allWindowTypes: [EZWindowType] = [.mini, .fixed, .main]
-
-        for windowType in allWindowTypes {
-            let serviceTypeIds = allServiceTypes(windowType)
-
-            for serviceTypeId in serviceTypeIds {
-                let components = serviceIdentifierComponents(from: serviceTypeId)
-                let rawType = components.rawType
-                let uuid = components.uuid
-                let baseType = ServiceType(rawValue: rawType)
-
-                if serviceInfo(withType: baseType, serviceId: uuid, windowType: windowType) == nil {
-                    let serviceInfo = QueryServiceConfiguration(
-                        uuid: uuid,
-                        type: baseType,
-                        enabled: true,
-                        enabledQuery: queryCount == 0,
-                        windowType: windowType
-                    )
-
-                    serviceInfo.enabled = defaultServiceTypeIDs.contains(rawType)
-                    setServiceInfo(serviceInfo, windowType: windowType)
-                }
+        for typeID in allServiceTypes(.fixed) {
+            let uuid = serviceIdentifierComponents(from: typeID).uuid
+            guard serviceInfo(withType: .customOpenAI, serviceId: uuid, windowType: .fixed) == nil else {
+                continue
             }
+            let info = QueryServiceConfiguration(
+                uuid: uuid, type: .customOpenAI, enabled: true, enabledQuery: true, windowType: .fixed
+            )
+            setServiceInfo(info, windowType: .fixed)
         }
     }
 

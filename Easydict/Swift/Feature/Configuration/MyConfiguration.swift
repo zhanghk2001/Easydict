@@ -9,6 +9,7 @@
 import Combine
 import Defaults
 import Foundation
+import Sparkle
 
 // MARK: - LanguageDetectOptimize
 
@@ -52,7 +53,7 @@ class MyConfiguration: NSObject {
     @DefaultsWrapper(.secondLanguage) var secondLanguage: Language
     @DefaultsWrapper(.queryFromLanguage) var fromLanguage: Language
     @DefaultsWrapper(.queryToLanguage) var toLanguage: Language
-    @DefaultsWrapper(.languageDetectOptimize) var languageDetectOptimize: LanguageDetectOptimize
+    let languageDetectOptimize: LanguageDetectOptimize = .none
 
     @DefaultsWrapper(.autoShowQueryIcon) var autoSelectText: Bool
     @DefaultsWrapper(.autoShowQueryIconExcludedLanguage) var autoShowQueryIconExcludedLanguage: Language
@@ -60,14 +61,12 @@ class MyConfiguration: NSObject {
     @DefaultsWrapper(.enableForceGetSelectedText) var enableForceGetSelectedText: Bool
     @DefaultsWrapper(.clickQuery) var clickQuery: Bool
 
-    @DefaultsWrapper(.mouseSelectTranslateWindowType) var mouseSelectTranslateWindowType:
-        EZWindowType
-    @DefaultsWrapper(.shortcutSelectTranslateWindowType) var shortcutSelectTranslateWindowType:
-        EZWindowType
+    let mouseSelectTranslateWindowType: EZWindowType = .fixed
+    let shortcutSelectTranslateWindowType: EZWindowType = .fixed
     @DefaultsWrapper(.fixedWindowPosition) var fixedWindowPosition: EZShowWindowPosition
     @DefaultsWrapper(.miniWindowPosition) var miniWindowPosition: EZShowWindowPosition
     @DefaultsWrapper(.pinWindowWhenDisplayed) var pinWindowWhenDisplayed
-    @DefaultsWrapper(.hideMainWindow) var hideMainWindow: Bool
+    let hideMainWindow: Bool = true
 
     @DefaultsWrapper(.clearQueryWhenInputTranslate) var clearInput: Bool
     @DefaultsWrapper(.keepPrevResultWhenSelectTranslateTextIsEmpty) var keepPrevResultWhenEmpty:
@@ -78,12 +77,12 @@ class MyConfiguration: NSObject {
     @DefaultsWrapper(.replaceNewlineWithSpace) var replaceNewlineWithSpace: Bool
     @DefaultsWrapper(.enableRemoveBooksExcerptInfo) var enableRemoveBooksExcerptInfo: Bool
 
-    @DefaultsWrapper(.localAutoSave) var localAutoSave: Bool
+    let localAutoSave: Bool = false
     @DefaultsWrapper(.autoQueryOCRText) var autoQueryOCRText: Bool
     @DefaultsWrapper(.autoQuerySelectedText) var autoQuerySelectedText: Bool
     @DefaultsWrapper(.autoQueryPastedText) var autoQueryPastedText: Bool
     @DefaultsWrapper(.autoQueryWhenTextChanged) var autoQueryWhenTextChanged: Bool
-    @DefaultsWrapper(.autoPlayAudio) var autoPlayAudio: Bool
+    let autoPlayAudio: Bool = false
     @DefaultsWrapper(.pronunciation) var pronunciation: EnglishPronunciation
     @DefaultsWrapper(.preferYoudaoTTSForEnglishWord) var preferYoudaoTTSForEnglishWord: Bool
 
@@ -91,19 +90,19 @@ class MyConfiguration: NSObject {
     @DefaultsWrapper(.autoCopyOCRText) var autoCopyOCRText: Bool
     @DefaultsWrapper(.autoCopyFirstTranslatedText) var autoCopyFirstTranslatedText: Bool
 
-    @DefaultsWrapper(.showGoogleQuickLink) var showGoogleQuickLink: Bool
-    @DefaultsWrapper(.showEudicQuickLink) var showEudicQuickLink: Bool
-    @DefaultsWrapper(.showAppleDictionaryQuickLink) var showAppleDictionaryQuickLink: Bool
-    @DefaultsWrapper(.showQuickActionButton) var showQuickActionButton: Bool
+    let showGoogleQuickLink: Bool = false
+    let showEudicQuickLink: Bool = false
+    let showAppleDictionaryQuickLink: Bool = false
+    let showQuickActionButton: Bool = false
 
     @DefaultsWrapper(.appearanceType) var appearance: AppearanceType
     @DefaultsWrapper(.hideMenuBarIcon) var hideMenuBarIcon: Bool
     @DefaultsWrapper(.fontSizeOptionIndex) var fontSizeIndex: UInt
-    @DefaultsWrapper(.enableMarkdownRendering) var enableMarkdownRendering: Bool
+    let enableMarkdownRendering: Bool = false
 
     // Advanced Tab
     @DefaultsWrapper(.enableBetaFeature) private(set) var beta: Bool
-    @DefaultsWrapper(.enableYoudaoOCR) var enableYoudaoOCR: Bool
+    let enableYoudaoOCR: Bool = false
     @DefaultsWrapper(.enableCompatibilityReplace) var enableCompatibilityReplace: Bool
     @DefaultsWrapper(.forceGetSelectedTextType) var forceGetSelectedTextType:
         ForceGetSelectedTextType
@@ -120,15 +119,15 @@ class MyConfiguration: NSObject {
     // Max window height percentage, e.g., 80 means 80% of the screen height
     @DefaultsWrapper(.maxWindowHeightPercentage) var maxWindowHeightPercentage: Int
 
-    @DefaultsWrapper(.allowCrashLog) var allowCrashLog: Bool
-    @DefaultsWrapper(.allowAnalytics) var allowAnalytics: Bool
+    let allowCrashLog: Bool = false
+    let allowAnalytics: Bool = false
 
     @ShortcutWrapper(.pinShortcut) var pinShortcutString: String
     @ShortcutWrapper(.googleShortcut) var googleShortcutString: String
     @ShortcutWrapper(.appleDictionaryShortcut) var appleDictShortcutString: String
     @ShortcutWrapper(.eudicShortcut) var eudicDictShortcutString: String
 
-    let updater = GlobalContext.shared.updaterController.updater
+    var updater: SPUUpdater { GlobalContext.shared.updaterController.updater }
     let fontSizes: [CGFloat] = [1, 1.1, 1.2, 1.3, 1.4]
     var disabledAutoSelect: Bool = false
     var isRecordingSelectTextShortcutKey: Bool = false
@@ -379,22 +378,6 @@ class MyConfiguration: NSObject {
             }
             .store(in: &cancellables)
 
-        Defaults.publisher(.allowCrashLog, options: [.initial])
-            .removeDuplicates()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.didSetAllowCrashLog()
-            }
-            .store(in: &cancellables)
-
-        Defaults.publisher(.allowAnalytics, options: [])
-            .removeDuplicates()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.didSetAllowAnalytics()
-            }
-            .store(in: &cancellables)
-
         Defaults.publisher(.clearQueryWhenInputTranslate, options: [])
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
@@ -436,16 +419,6 @@ class MyConfiguration: NSObject {
         }
         .store(in: &cancellables)
 
-        Defaults.publisher(.enableHTTPServer)
-            .removeDuplicates()
-            .receive(on: DispatchQueue.main)
-            .sink { change in
-                let isOn = change.newValue
-                Task {
-                    await VaporServer.shared.startServer(isOn: isOn)
-                }
-            }
-            .store(in: &cancellables)
     }
 }
 

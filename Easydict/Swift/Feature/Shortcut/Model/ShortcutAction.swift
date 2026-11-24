@@ -54,26 +54,12 @@ public enum ShortcutAction: String, Identifiable, CaseIterable {
 }
 
 extension ShortcutAction {
-    /// All global shortcut actions (system-wide hotkeys)
-    static let globalActions: [ShortcutAction] = [
-        .inputTranslate,
-        .snipTranslate,
-        .selectTranslate,
-        .toggleAutoSelectText,
-        .showMiniWindow,
-        .pasteboardTranslate,
-        .polishAndReplace,
-        .translateAndReplace,
-        .silentScreenshotOCR,
-        .screenshotOCR,
-        .pasteboardOCR,
-        .showOCRWindow,
-    ]
+    static let globalActions: [ShortcutAction] = [.selectTranslate, .snipTranslate]
 
-    /// All app-specific shortcut actions (only active when app is focused)
-    static var appActions: [ShortcutAction] {
-        allCases.filter { !globalActions.contains($0) }
-    }
+    static let appActions: [ShortcutAction] = [
+        .clearInput, .clearAll, .copy, .copyFirstResult, .focus, .retry,
+        .toggle, .pin, .hide, .increaseFontSize, .decreaseFontSize,
+    ]
 
     /// Whether this action is a global shortcut (system-wide hotkey)
     var isGlobal: Bool {

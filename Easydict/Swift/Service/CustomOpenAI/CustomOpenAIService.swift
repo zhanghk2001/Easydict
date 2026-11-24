@@ -24,6 +24,10 @@ class CustomOpenAIService: BaseOpenAIService {
         .customOpenAI
     }
 
+    public override func supportedQueryType() -> EZQueryTextType { .translation }
+
+    public override func serviceUsageStatus() -> EZServiceUsageStatus { .alwaysOn }
+
     // MARK: Internal
 
     override var supportsStreamingToggle: Bool { true }
@@ -52,6 +56,10 @@ class CustomOpenAIService: BaseOpenAIService {
         StreamConfigurationView(
             service: self,
             showCustomNameSection: true,
+            showTranslationToggle: false,
+            showSentenceToggle: false,
+            showDictionaryToggle: false,
+            showUsageStatusPicker: false,
             showStreamingToggle: true
         )
     }

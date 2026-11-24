@@ -339,7 +339,7 @@ struct GeneralTab: View {
 
 // MARK: - FirstAndSecondLanguageSettingView
 
-private struct FirstAndSecondLanguageSettingView: View {
+struct FirstAndSecondLanguageSettingView: View {
     // MARK: Internal
 
     var body: some View {

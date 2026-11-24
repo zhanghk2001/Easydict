@@ -7,12 +7,6 @@
 //
 
 #import "AppDelegate.h"
-#import "AppDelegate+EZURLScheme.h"
-
-
-@interface AppDelegate ()
-
-@end
 
 @implementation AppDelegate
 
@@ -22,26 +16,8 @@
     [ShortcutManager.shared setupShortcut];
 
     [EZWindowManager.shared showMainWindowIfNeeded];
-    
-    [self registerRouters];
-    
+
     [DarkModeManager.shared updateDarkMode:MyConfiguration.shared.appearance];
-
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(vocabularyNotebookWriteFailed:)
-                                                 name:NSNotification.vocabularyNotebookWriteFailed
-                                               object:nil];
-}
-
-- (void)vocabularyNotebookWriteFailed:(NSNotification *)notification {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSAlert *alert = [[NSAlert alloc] init];
-        alert.alertStyle = NSAlertStyleWarning;
-        alert.messageText = NSLocalizedString(@"vocabulary_notebook.write_failed_message", nil);
-        alert.informativeText = notification.userInfo[UserInfoKey.vocabularyNotebookDirectory];
-        [alert addButtonWithTitle:NSLocalizedString(@"ok", nil)];
-        [alert runModal];
-    });
 }
 
 #pragma mark - NSApplicationDelegate

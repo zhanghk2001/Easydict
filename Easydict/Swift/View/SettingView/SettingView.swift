@@ -6,6 +6,7 @@
 //  Copyright © 2023 izual. All rights reserved.
 //
 
+import Defaults
 import SwiftUI
 
 // MARK: - SettingTab
@@ -14,10 +15,7 @@ enum SettingTab: Int {
     case general
     case service
     case disabled
-    case advanced
     case shortcut
-    case privacy
-    case favorites
     case about
 }
 
@@ -28,17 +26,13 @@ struct SettingView: View {
 
     var body: some View {
         TabView(selection: $selection) {
-            GeneralTab()
+            TranslationPreferencesTab()
                 .tabItem { Label("setting_general", systemImage: "gear") }
                 .tag(SettingTab.general)
 
             ServiceTab()
                 .tabItem { Label("service", systemImage: "briefcase") }
                 .tag(SettingTab.service)
-
-            FavoritesTab()
-                .tabItem { Label("favorites.tab", systemImage: "star") }
-                .tag(SettingTab.favorites)
 
             DisabledAppTab()
                 .tabItem { Label("disabled_app_list", systemImage: "nosign") }
@@ -47,14 +41,6 @@ struct SettingView: View {
             ShortcutTab()
                 .tabItem { Label("shortcut", systemImage: "command.square") }
                 .tag(SettingTab.shortcut)
-
-            AdvancedTab()
-                .tabItem { Label("advanced", systemImage: "gearshape.2") }
-                .tag(SettingTab.advanced)
-
-            PrivacyTab()
-                .tabItem { Label("privacy", systemImage: "hand.raised.square") }
-                .tag(SettingTab.privacy)
 
             AboutTab()
                 .tabItem { Label("setting.about", systemImage: "info.bubble") }
@@ -81,12 +67,8 @@ struct SettingView: View {
         let height: Double = switch selection {
         case .disabled:
             500
-        case .privacy:
-            340
         case .about:
             300
-        case .favorites:
-            640
         default:
             defaultSettingsWindowHeight
         }
@@ -115,6 +97,31 @@ struct SettingView: View {
 
     private let settingsWindowWidth: Double = 960
     private let defaultSettingsWindowHeight: Double = 720
+}
+
+// MARK: - TranslationPreferencesTab
+
+private struct TranslationPreferencesTab: View {
+    @Default(.autoShowQueryIcon) private var autoShowQueryIcon
+    @Default(.autoQuerySelectedText) private var autoQuerySelectedText
+    @Default(.autoQueryOCRText) private var autoQueryOCRText
+    @Default(.autoCopyFirstTranslatedText) private var autoCopyFirstTranslatedText
+
+    var body: some View {
+        Form {
+            Section("setting.general.query_language.header") {
+                FirstAndSecondLanguageSettingView()
+            }
+
+            Section("setting.general.auto_query.header") {
+                Toggle("setting.advance.auto_show_query_icon", isOn: $autoShowQueryIcon)
+                Toggle("auto_query_selected_text", isOn: $autoQuerySelectedText)
+                Toggle("auto_query_ocr_text", isOn: $autoQueryOCRText)
+                Toggle("auto_copy_first_translated_text", isOn: $autoCopyFirstTranslatedText)
+            }
+        }
+        .formStyle(.grouped)
+    }
 }
 
 #Preview {

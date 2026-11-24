@@ -18,10 +18,6 @@ struct ServiceTab: View {
     var body: some View {
         HSplitView {
             VStack(spacing: 16) {
-                WindowTypePicker(windowType: $viewModel.windowType)
-                    .padding(.horizontal, 12)
-                    .padding(.top)
-
                 VStack(alignment: .leading, spacing: 8) {
                     List(
                         selection: Binding(
@@ -45,7 +41,7 @@ struct ServiceTab: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(.horizontal, 12)
-                .padding(.bottom, 12)
+                .padding(.vertical, 12)
             }
             .frame(minWidth: 270, maxWidth: 320, maxHeight: .infinity)
 
@@ -53,6 +49,7 @@ struct ServiceTab: View {
                 .layoutPriority(1)
         }
         .environmentObject(viewModel)
+        .onAppear { _ = GlobalContext.shared }
         .onChange(of: viewModel.windowType) { _ in
             viewModel.handleWindowTypeChange()
         }
@@ -391,23 +388,4 @@ private struct ServiceDetailView: View {
     // MARK: Private
 
     @EnvironmentObject private var viewModel: ServiceTabViewModel
-}
-
-// MARK: - WindowTypePicker
-
-private struct WindowTypePicker: View {
-    @Binding var windowType: EZWindowType
-
-    var body: some View {
-        Picker(selection: $windowType) {
-            ForEach([EZWindowType]([.fixed, .mini, .main]), id: \.rawValue) { windowType in
-                Text(windowType.localizedStringResource)
-                    .tag(windowType)
-            }
-        } label: {
-            EmptyView()
-        }
-        .labelsHidden()
-        .pickerStyle(.segmented)
-    }
 }
