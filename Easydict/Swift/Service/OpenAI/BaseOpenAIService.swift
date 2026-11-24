@@ -190,6 +190,7 @@ public class BaseOpenAIService: StreamService {
             query: query,
             url: endpoint,
             apiKey: apiKey,
+            useDashScopeDefaults: serviceType() == .customOpenAI,
             onResult: onResult
         )
     }
@@ -199,24 +200,12 @@ public class BaseOpenAIService: StreamService {
     func handleChatStreamError(_: Error) async {}
 
     func requestChatText(query: ChatQuery, url: URL, apiKey: String) async throws -> String {
-        let request = try makeNonStreamingChatRequest(query: query, url: url, apiKey: apiKey)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try Task.checkCancellation()
-        if let http = response as? HTTPURLResponse, !(200 ... 299).contains(http.statusCode) {
-            if let apiError = try? JSONDecoder().decode(APIErrorResponse.self, from: data) {
-                throw apiError
-            }
-            throw QueryError(
-                type: .api,
-                message: "HTTP \(http.statusCode)",
-                errorDataMessage: String(data: data, encoding: .utf8)
-            )
-        }
-        let chatResult = try JSONDecoder().decode(ChatResult.self, from: data)
-        guard let content = chatResult.choices.first?.message.content, !content.isEmpty else {
-            throw QueryError(type: .noResult)
-        }
-        return content
+        try await OpenAIStreamTransport().complete(
+            query: query,
+            url: url,
+            apiKey: apiKey,
+            useDashScopeDefaults: serviceType() == .customOpenAI
+        )
     }
 
     // MARK: Private
@@ -381,34 +370,6 @@ public class BaseOpenAIService: StreamService {
                 task.cancel()
             }
         }
-    }
-
-    /// Builds the HTTP request for a non-streaming OpenAI-compatible chat completion.
-    /// - Parameters:
-    ///   - query: The chat completion query to encode.
-    ///   - url: The provider endpoint URL.
-    ///   - apiKey: The API token used by OpenAI-compatible providers.
-    /// - Returns: A configured `URLRequest` ready for `URLSession`.
-    private func makeNonStreamingChatRequest(
-        query: ChatQuery,
-        url: URL,
-        apiKey: String
-    ) throws
-        -> URLRequest {
-        var query = query
-        query.stream = false
-
-        var request = URLRequest(
-            url: url, timeoutInterval: AppConstants.llmRequestTimeoutInterval
-        )
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if !apiKey.isEmpty {
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-            request.setValue(apiKey, forHTTPHeaderField: "api-key")
-        }
-        request.httpBody = try JSONEncoder().encode(query)
-        return request
     }
 
     private func remoteModelsURL() throws -> URL {

@@ -57,6 +57,15 @@ struct ChatQueryParam {
     let queryType: EZQueryTextType
     let enableSystemPrompt: Bool
 
+    /// Uses this request's values even when there is no active query window, such as during validation.
+    func renderPrompt(_ prompt: String, firstLanguage: Language) -> String {
+        prompt
+            .replacingOccurrences(of: "${{queryFromLanguage}}", with: sourceLanguage.rawValue)
+            .replacingOccurrences(of: "${{queryTargetLanguage}}", with: targetLanguage.rawValue)
+            .replacingOccurrences(of: "${{firstLanguage}}", with: firstLanguage.rawValue)
+            .replacingOccurrences(of: "${{queryText}}", with: text)
+    }
+
     func unpack() -> (String, Language, Language, EZQueryTextType, Bool) {
         (text, sourceLanguage, targetLanguage, queryType, enableSystemPrompt)
     }

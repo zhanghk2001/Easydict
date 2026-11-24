@@ -27,9 +27,12 @@ struct OpenAIStreamTransport: Sendable {
         query: ChatQuery,
         url: URL,
         apiKey: String,
+        useDashScopeDefaults: Bool = false,
         onResult: @escaping @Sendable (ChatStreamResult) -> ()
     ) async throws {
-        let request = try makeRequest(query: query, url: url, apiKey: apiKey)
+        let request = try makeRequest(
+            query: query, url: url, apiKey: apiKey, useDashScopeDefaults: useDashScopeDefaults
+        )
         _ = try await stream(request: request, onResult: onResult)
     }
 
@@ -78,9 +81,46 @@ struct OpenAIStreamTransport: Sendable {
         return text
     }
 
-    func makeRequest(query: ChatQuery, url: URL, apiKey: String) throws -> URLRequest {
+    func complete(
+        query: ChatQuery,
+        url: URL,
+        apiKey: String,
+        useDashScopeDefaults: Bool
+    ) async throws -> String {
+        let request = try makeRequest(
+            query: query, url: url, apiKey: apiKey, streaming: false,
+            useDashScopeDefaults: useDashScopeDefaults
+        )
+        let (data, response) = try await session.data(for: request)
+        try Task.checkCancellation()
+        if let http = response as? HTTPURLResponse, !(200 ... 299).contains(http.statusCode) {
+            if let apiError = try? JSONDecoder().decode(APIErrorResponse.self, from: data) {
+                throw apiError
+            }
+            throw QueryError(
+                type: .api,
+                message: "HTTP \(http.statusCode)",
+                errorDataMessage: String(data: data, encoding: .utf8)
+            )
+        }
+
+        let chatResult = try JSONDecoder().decode(ChatResult.self, from: data)
+        guard let content = chatResult.choices.first?.message.content, !content.isEmpty else {
+            throw QueryError(type: .noResult)
+        }
+        return content
+    }
+
+    func makeRequest(
+        query: ChatQuery,
+        url: URL,
+        apiKey: String,
+        streaming: Bool = true,
+        useDashScopeDefaults: Bool = false
+    ) throws -> URLRequest {
         var query = query
-        query.stream = true
+        query.stream = streaming
+        let useDashScope = useDashScopeDefaults && DashScopeChatCompatibility.isChatEndpoint(url)
 
         var request = URLRequest(
             url: url, timeoutInterval: AppConstants.llmRequestTimeoutInterval
@@ -89,9 +129,16 @@ struct OpenAIStreamTransport: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if !apiKey.isEmpty {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-            request.setValue(apiKey, forHTTPHeaderField: "api-key")
+            if !useDashScope {
+                request.setValue(apiKey, forHTTPHeaderField: "api-key")
+            }
         }
-        request.httpBody = try JSONEncoder().encode(query)
+
+        if useDashScope, DashScopeChatCompatibility.disablesThinking(for: query.model) {
+            request.httpBody = try JSONEncoder().encode(DashScopeChatCompatibility.RequestBody(query: query))
+        } else {
+            request.httpBody = try JSONEncoder().encode(query)
+        }
         return request
     }
 
@@ -198,6 +245,64 @@ enum OpenAIStreamTransportError: LocalizedError, Equatable {
                 message += " This may be caused by a wrong endpoint: \(url)"
             }
             return message
+        }
+    }
+}
+
+
+// MARK: - DashScopeChatCompatibility
+
+/// Applies the Alibaba Cloud request defaults for Custom OpenAI text translation.
+enum DashScopeChatCompatibility {
+    private static let basePath = "/compatible-mode/v1"
+    private static let chatPath = basePath + "/chat/completions"
+
+    static func completionsURL(_ url: URL) -> URL {
+        guard isOfficialHTTPSHost(url),
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        else { return url }
+
+        let path = components.percentEncodedPath
+        guard path == basePath || path == basePath + "/" else { return url }
+        components.percentEncodedPath = chatPath
+        return components.url ?? url
+    }
+
+    static func isChatEndpoint(_ url: URL) -> Bool {
+        guard isOfficialHTTPSHost(url),
+              let path = URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedPath
+        else { return false }
+        return path == chatPath
+    }
+
+    static func disablesThinking(for model: String) -> Bool {
+        let id = model.lowercased()
+        guard !id.contains("thinking") else { return false }
+        return ["qwen3", "qwen4-max", "qwen-plus", "qwen-flash"].contains { prefix in
+            id == prefix || id.hasPrefix(prefix + "-") || (prefix == "qwen3" && id.hasPrefix("qwen3."))
+        }
+    }
+
+    private static func isOfficialHTTPSHost(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased() else {
+            return false
+        }
+        return host == "dashscope.aliyuncs.com" || host == "dashscope-intl.aliyuncs.com"
+            || host.hasSuffix(".cn-beijing.maas.aliyuncs.com")
+            || host.hasSuffix(".ap-southeast-1.maas.aliyuncs.com")
+    }
+
+    struct RequestBody: Encodable {
+        let query: ChatQuery
+
+        private enum CodingKeys: String, CodingKey {
+            case enableThinking = "enable_thinking"
+        }
+
+        func encode(to encoder: Encoder) throws {
+            try query.encode(to: encoder)
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(false, forKey: .enableThinking)
         }
     }
 }

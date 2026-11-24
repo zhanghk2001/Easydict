@@ -597,18 +597,17 @@ public class StreamService: QueryService {
     func chatMessageDicts(_ chatQuery: ChatQueryParam) -> [ChatMessage] {
         if enableCustomPrompt {
             var chatMessages: [ChatMessage] = []
-            let systemPrompt = replaceCustomPromptWithVariable(systemPrompt)
-            var userPrompt = replaceCustomPromptWithVariable(userPrompt)
+            let firstLanguage = MyConfiguration.shared.firstLanguage
+            let systemPrompt = chatQuery.renderPrompt(systemPrompt, firstLanguage: firstLanguage)
+            let userPrompt = chatQuery.renderPrompt(userPrompt, firstLanguage: firstLanguage)
 
             if !systemPrompt.isEmpty {
                 chatMessages.append(.init(role: .system, content: systemPrompt))
             }
 
             // If user prompt is empty, use query text as user prompt
-            if userPrompt.isEmpty {
-                userPrompt = queryModel.queryText
-            }
-            chatMessages.append(.init(role: .user, content: userPrompt))
+            let userContent = userPrompt.isEmpty ? chatQuery.text : userPrompt
+            chatMessages.append(.init(role: .user, content: userContent))
 
             return chatMessages
         }

@@ -28,6 +28,11 @@ class CustomOpenAIService: BaseOpenAIService {
 
     override var supportsStreamingToggle: Bool { true }
 
+    @nonobjc
+    override func validateChatStreamRequest() throws -> URL {
+        DashScopeChatCompatibility.completionsURL(try super.validateChatStreamRequest())
+    }
+
     override func serviceTypeWithUniqueIdentifier() -> String {
         guard !uuid.isEmpty else {
             return ServiceType.customOpenAI.rawValue

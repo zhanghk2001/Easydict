@@ -704,40 +704,6 @@ extension StreamService {
             translationMessages(chatQuery)
         }
     }
-
-    /**
-     Convert custom prompt $xxx to variable.
-
-     e.g.
-     prompt: Translate the following ${{queryFromLanguage}} text into ${{queryTargetLanguage}}: ${{queryText}}
-     runtime prompt: Translate the following English text into Simplified-Chinese: Hello, world
-
-     ${{queryFromLanguage}} --> queryModel.queryFromLanguage.rawValue
-     ${{queryTargetLanguage}} --> queryModel.queryTargetLanguage.rawValue
-     ${{queryText}} --> queryModel.queryText
-     ${{firstLanguage}} --> Configuration.shared.firstLanguage.rawValue
-     */
-    func replaceCustomPromptWithVariable(_ prompt: String) -> String {
-        var runtimePrompt = prompt
-
-        runtimePrompt = runtimePrompt.replacingOccurrences(
-            of: "${{queryFromLanguage}}",
-            with: queryModel.queryFromLanguage.rawValue
-        )
-        runtimePrompt = runtimePrompt.replacingOccurrences(
-            of: "${{queryTargetLanguage}}",
-            with: queryModel.queryTargetLanguage.rawValue
-        )
-        runtimePrompt = runtimePrompt.replacingOccurrences(
-            of: "${{queryText}}",
-            with: queryModel.queryText
-        )
-        runtimePrompt = runtimePrompt.replacingOccurrences(
-            of: "${{firstLanguage}}",
-            with: MyConfiguration.shared.firstLanguage.rawValue
-        )
-        return runtimePrompt
-    }
 }
 
 extension Language {
